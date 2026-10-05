@@ -1,0 +1,9 @@
+{
+  "name": "Panelão Brasileiro de Beyblade X 2026",
+  "short_name": "Panelão BX 2026",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#111827",
+  "description": "Registro oficial de partidas, placares, decks, arbitragem e validações do Panelão Brasileiro de Beyblade X 2026."
+}

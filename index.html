@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <title>Panelão Brasileiro de Beyblade X 2026</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Sistema oficial de registro de partidas</div>
+      <h1>Panelão Brasileiro de Beyblade X 2026</h1>
+      <p class="subtitle">Cadastro de jogadores, arbitragem, decks, placares e validação bilateral.</p>
+    </div>
+    <div class="status-chip" id="storageStatus">● Dados locais</div>
+  </header>
+
+  <nav class="tabs" aria-label="Navegação principal">
+    <button class="tab active" data-tab="dashboard">Painel</button>
+    <button class="tab" data-tab="match">Nova partida</button>
+    <button class="tab" data-tab="history">Partidas</button>
+    <button class="tab" data-tab="ranking">Classificação</button>
+    <button class="tab" data-tab="people">Jogadores e juízes</button>
+    <button class="tab" data-tab="backup">Backup</button>
+  </nav>
+
+  <main class="container">
+    <section id="dashboard" class="panel active">
+      <div class="hero card">
+        <div>
+          <span class="badge">TORNEIO</span>
+          <h2>Panelão Brasileiro de Beyblade X 2026</h2>
+          <p>Use este painel durante o evento para registrar resultados, conferir partidas pendentes e acompanhar a classificação.</p>
+        </div>
+        <button class="primary big" data-goto="match">＋ Registrar partida</button>
+      </div>
+      <div class="metrics">
+        <article class="metric card"><span>Partidas</span><strong id="mTotal">0</strong><small>registradas</small></article>
+        <article class="metric card"><span>Homologadas</span><strong id="mApproved">0</strong><small>com 2 validações</small></article>
+        <article class="metric card"><span>Pendentes</span><strong id="mPending">0</strong><small>aguardando jogador</small></article>
+        <article class="metric card"><span>Jogadores</span><strong id="mPlayers">0</strong><small>cadastrados</small></article>
+      </div>
+      <div class="grid-2">
+        <article class="card">
+          <div class="section-head"><h3>Últimas partidas</h3><button class="link-btn" data-goto="history">Ver todas</button></div>
+          <div id="recentMatches" class="list-empty">Nenhuma partida registrada.</div>
+        </article>
+        <article class="card">
+          <div class="section-head"><h3>Pendências de validação</h3></div>
+          <div id="pendingMatches" class="list-empty">Nenhuma validação pendente.</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="match" class="panel">
+      <div class="section-title">
+        <div><span class="eyebrow">Registro oficial</span><h2>Nova partida</h2></div>
+        <span class="badge fixed">Panelão Brasileiro de Beyblade X 2026</span>
+      </div>
+      <form id="matchForm">
+        <div class="card form-card">
+          <h3>1. Identificação da partida</h3>
+          <div class="form-grid cols-4">
+            <label>Fase
+              <select id="stage" required>
+                <option value="Fase de grupos">Fase de grupos</option>
+                <option value="Swiss">Swiss</option>
+                <option value="Oitavas de final">Oitavas de final</option>
+                <option value="Quartas de final">Quartas de final</option>
+                <option value="Semifinal">Semifinal</option>
+                <option value="Final">Final</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </label>
+            <label>Rodada
+              <input id="round" placeholder="Ex.: 3" required />
+            </label>
+            <label>Mesa / Arena
+              <input id="tableNo" placeholder="Ex.: Mesa 4" />
+            </label>
+            <label>Juiz
+              <select id="judge" required></select>
+            </label>
+          </div>
+        </div>
+
+        <div class="versus-layout">
+          <div class="card competitor blue">
+            <div class="competitor-title"><span>A</span><h3>Jogador A</h3></div>
+            <label>Jogador
+              <select id="playerA" required></select>
+            </label>
+            <label>Placar
+              <input id="scoreA" type="number" min="0" step="1" value="0" readonly aria-readonly="true" />
+            </label>
+            <h4>Combos pré-registrados</h4>
+            <div id="deckA"></div>
+          </div>
+
+          <div class="vs">VS</div>
+
+          <div class="card competitor red">
+            <div class="competitor-title"><span>B</span><h3>Jogador B</h3></div>
+            <label>Jogador
+              <select id="playerB" required></select>
+            </label>
+            <label>Placar
+              <input id="scoreB" type="number" min="0" step="1" value="0" readonly aria-readonly="true" />
+            </label>
+            <h4>Combos pré-registrados</h4>
+            <div id="deckB"></div>
+          </div>
+        </div>
+
+        <div class="card form-card battle-score-card">
+          <div class="section-head">
+            <div>
+              <h3>2. Pontuação por batalha</h3>
+              <p class="hint score-help">Use os botões para selecionar, entre os combos pré-registrados dos jogadores, quais se enfrentaram. Depois registre a forma de pontuação. O placar acima é calculado automaticamente.</p>
+            </div>
+            <span class="badge">Spin 1 • Over 2 • Burst 2 • Extreme 3</span>
+          </div>
+          <div class="battle-entry-grid interactive-score-entry">
+            <label>Vencedor da batalha
+              <select id="battleWinner">
+                <option value="A">Jogador A</option>
+                <option value="B">Jogador B</option>
+              </select>
+            </label>
+            <div class="combo-select-field">
+              <span>Combo do Jogador A</span>
+              <button type="button" id="battleComboAButton" class="combo-select-btn" data-side="A">Selecionar combo do Jogador A</button>
+              <input type="hidden" id="battleComboA" value="" />
+            </div>
+            <div class="combo-select-field">
+              <span>Combo do Jogador B</span>
+              <button type="button" id="battleComboBButton" class="combo-select-btn" data-side="B">Selecionar combo do Jogador B</button>
+              <input type="hidden" id="battleComboB" value="" />
+            </div>
+            <div class="finish-picker" role="group" aria-label="Tipo de pontuação">
+              <span class="finish-picker-label">Toque no tipo de pontuação para registrar</span>
+              <div class="finish-buttons">
+                <button type="button" class="finish-btn spin" data-finish="spin" aria-label="Registrar Spin Finish, 1 ponto"><strong>Spin Finish</strong><span>+1</span></button>
+                <button type="button" class="finish-btn over" data-finish="over" aria-label="Registrar Over Finish, 2 pontos"><strong>Over Finish</strong><span>+2</span></button>
+                <button type="button" class="finish-btn burst" data-finish="burst" aria-label="Registrar Burst Finish, 2 pontos"><strong>Burst Finish</strong><span>+2</span></button>
+                <button type="button" class="finish-btn extreme" data-finish="extreme" aria-label="Registrar Extreme Finish, 3 pontos"><strong>Extreme Finish</strong><span>+3</span></button>
+              </div>
+              <div class="finish-action-hint">Cada toque adiciona imediatamente uma batalha ao placar.</div>
+            </div>
+          </div>
+          <div id="battleResults" class="battle-results list-empty">Nenhuma batalha registrada.</div>
+        </div>
+
+        <div class="card form-card">
+          <h3>3. Detalhes e observações</h3>
+          <label>Observações da arbitragem
+            <textarea id="notes" rows="3" placeholder="Ocorrências, advertências, repetição de lançamento, substituições autorizadas etc."></textarea>
+          </label>
+          <label class="check-row"><input type="checkbox" id="confirmAccurate" required /> Confirmo que placar, jogadores, juiz e peças foram conferidos antes de salvar.</label>
+        </div>
+
+        <div class="action-row sticky-actions">
+          <button type="reset" class="secondary">Limpar</button>
+          <button type="submit" class="primary">Salvar e iniciar validação</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="history" class="panel">
+      <div class="section-title"><div><span class="eyebrow">Auditoria</span><h2>Partidas registradas</h2></div></div>
+      <div class="card filters">
+        <input id="historySearch" placeholder="Buscar jogador, juiz, rodada, peça..." />
+        <select id="statusFilter"><option value="all">Todos os status</option><option value="approved">Homologadas</option><option value="pending">Pendentes</option></select>
+      </div>
+      <div id="matchList" class="match-list"></div>
+    </section>
+
+    <section id="ranking" class="panel">
+      <div class="section-title"><div><span class="eyebrow">Somente partidas homologadas</span><h2>Classificação</h2></div></div>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Jogador</th><th>J</th><th>V</th><th>D</th><th>PF</th><th>PS</th><th>Saldo</th><th>Aproveitamento</th></tr></thead>
+          <tbody id="rankingBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="people" class="panel">
+      <div class="section-title"><div><span class="eyebrow">Credenciais locais</span><h2>Jogadores e juízes</h2></div></div>
+      <div class="grid-2">
+        <form id="playerForm" class="card form-card">
+          <h3>Cadastrar jogador</h3>
+          <label>Nome / apelido<input id="playerName" required placeholder="Nome exibido no torneio" /></label>
+          <label>Equipe / cidade<input id="playerTeam" placeholder="Opcional" /></label>
+          <label>PIN de validação<input id="playerPin" required inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="4 a 8 números" /></label>
+          <p class="hint">O PIN é armazenado somente como hash neste navegador e é usado para confirmar partidas.</p>
+          <div class="player-combo-note">Após cadastrar o jogador, use <strong>Gerenciar combos</strong> para registrar os combos oficiais dele.</div>
+          <button class="primary" type="submit">Cadastrar jogador</button>
+        </form>
+        <form id="judgeForm" class="card form-card">
+          <h3>Cadastrar juiz</h3>
+          <label>Nome do juiz<input id="judgeName" required /></label>
+          <label>Identificação / equipe<input id="judgeTeam" placeholder="Opcional" /></label>
+          <button class="primary" type="submit">Cadastrar juiz</button>
+        </form>
+      </div>
+      <div class="grid-2 top-gap">
+        <article class="card"><div class="section-head"><h3>Jogadores cadastrados</h3><span id="playerCount" class="badge"></span></div><div id="playerList"></div></article>
+        <article class="card"><div class="section-head"><h3>Juízes cadastrados</h3><span id="judgeCount" class="badge"></span></div><div id="judgeList"></div></article>
+      </div>
+    </section>
+
+    <section id="backup" class="panel">
+      <div class="section-title"><div><span class="eyebrow">Segurança dos dados</span><h2>Backup e exportação</h2></div></div>
+      <div class="grid-2">
+        <article class="card form-card">
+          <h3>Backup completo</h3>
+          <p>Exporte jogadores, juízes e partidas em JSON. Guarde uma cópia ao final de cada rodada.</p>
+          <div class="button-stack">
+            <button id="exportJson" class="primary">Baixar backup JSON</button>
+            <label class="file-button">Importar backup JSON<input id="importJson" type="file" accept="application/json" hidden /></label>
+          </div>
+        </article>
+        <article class="card form-card">
+          <h3>Planilha de resultados</h3>
+          <p>Exporte um CSV compatível com Excel e Google Sheets.</p>
+          <button id="exportCsv" class="secondary">Baixar partidas em CSV</button>
+        </article>
+      </div>
+      <article class="card danger-zone top-gap">
+        <h3>Zona de administração</h3>
+        <p>Apaga todos os dados locais deste aparelho. Faça um backup antes.</p>
+        <button id="clearAll" class="danger">Apagar todos os dados</button>
+      </article>
+    </section>
+  </main>
+
+  <dialog id="validationDialog">
+    <form method="dialog" id="validationForm" class="dialog-card">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <span class="eyebrow">Validação de resultado</span>
+      <h3 id="validationTitle">Confirmar partida</h3>
+      <p id="validationSummary"></p>
+      <input type="hidden" id="validationMatchId" />
+      <input type="hidden" id="validationSide" />
+      <label>PIN do jogador<input id="validationPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required /></label>
+      <p id="validationError" class="error-text"></p>
+      <div class="action-row"><button value="cancel" class="secondary">Cancelar</button><button id="confirmValidation" value="default" class="primary">Validar resultado</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="comboSelectionDialog">
+    <form method="dialog" class="dialog-card combo-selection-dialog">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <span class="eyebrow">Seleção da batalha</span>
+      <h3 id="comboSelectionTitle">Selecionar combo</h3>
+      <p id="comboSelectionHelp">Escolha um dos combos pré-registrados do jogador.</p>
+      <div id="comboSelectionOptions" class="combo-option-list"></div>
+    </form>
+  </dialog>
+
+  <dialog id="playerCombosDialog">
+    <form method="dialog" id="playerCombosForm" class="dialog-card player-combos-dialog">
+      <button class="dialog-close" value="cancel" aria-label="Fechar">×</button>
+      <span class="eyebrow">Cadastro permanente</span>
+      <h3 id="playerCombosTitle">Combos do jogador</h3>
+      <p>Cadastre até 3 combos. Eles serão oferecidos ao juiz por botão durante cada batalha.</p>
+      <input type="hidden" id="playerCombosPlayerId" />
+      <div id="playerCombosEditor"></div>
+      <div class="action-row"><button value="cancel" class="secondary">Cancelar</button><button id="savePlayerCombos" value="default" class="primary">Salvar combos</button></div>
+    </form>
+  </dialog>
+
+  <template id="comboTemplate">
+    <div class="combo-box">
+      <div class="combo-head"><strong>Combo <span class="combo-num"></span></strong><button type="button" class="tiny ghost clear-combo">Limpar</button></div>
+      <div class="combo-grid">
+        <label>Lock Chip<input class="part lock" list="lockList" placeholder="Opcional" /></label>
+        <label>Blade<input class="part blade" list="bladeList" placeholder="Blade" /></label>
+        <label>Over Blade<input class="part over" list="overList" placeholder="Opcional" /></label>
+        <label>Metal Blade<input class="part metal" list="metalList" placeholder="Opcional" /></label>
+        <label>Assist Blade<input class="part assist" list="assistList" placeholder="Opcional" /></label>
+        <label>Ratchet<input class="part ratchet" list="ratchetList" placeholder="Ratchet / Sem Ratchet" /></label>
+        <label>Bit<input class="part bit" list="bitList" placeholder="Bit" /></label>
+      </div>
+    </div>
+  </template>
+
+  <datalist id="lockList"></datalist><datalist id="bladeList"></datalist><datalist id="overList"></datalist><datalist id="metalList"></datalist><datalist id="assistList"></datalist><datalist id="ratchetList"></datalist><datalist id="bitList"></datalist>
+
+  <footer>Panelão Brasileiro de Beyblade X 2026 • dados salvos localmente neste dispositivo • faça backups periódicos</footer>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
