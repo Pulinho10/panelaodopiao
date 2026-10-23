@@ -1,7 +1,8 @@
-const APP_KEY='panelaoBeybladeX2026_v1';
 const TOURNAMENT='Panelão Brasileiro de Beyblade X 2026';
-const emptyData=()=>({version:1,tournament:TOURNAMENT,players:[],judges:[],matches:[],updatedAt:new Date().toISOString()});
-let db=load();
+const emptyData=()=>({version:2,tournament:TOURNAMENT,players:[],judges:[],matches:[],updatedAt:new Date().toISOString()});
+let db=emptyData();
+let syncTimer=null;
+let serverOnline=false;
 let currentBattleResults=[];
 const FINISH_POINTS={spin:1,over:2,burst:2,extreme:3};
 const FINISH_LABELS={spin:'Spin Finish',over:'Over Finish',burst:'Burst Finish',extreme:'Extreme Finish'};
@@ -16,16 +17,26 @@ const catalog={
 function $(s){return document.querySelector(s)}
 function $$(s){return [...document.querySelectorAll(s)]}
 function uid(prefix='id'){return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
-function load(){try{const raw=localStorage.getItem(APP_KEY);return raw?{...emptyData(),...JSON.parse(raw)}:emptyData()}catch{return emptyData()}}
-function save(){db.updatedAt=new Date().toISOString();localStorage.setItem(APP_KEY,JSON.stringify(db));renderAll()}
+function setServerStatus(online,message=''){serverOnline=online;const el=$('#storageStatus');if(el){el.textContent=online?'● Servidor conectado':'● Servidor indisponível';el.classList.toggle('offline',!online);el.title=message||'';}}
+async function api(action='state',payload=null,admin=false){
+  const headers={'Accept':'application/json'}; if(payload!==null)headers['Content-Type']='application/json';
+  let key=sessionStorage.getItem('panelaoAdminKey')||''; if(admin&&key)headers['X-Admin-Key']=key;
+  const opts={method:payload===null?'GET':'POST',headers,cache:'no-store'}; if(payload!==null)opts.body=JSON.stringify(payload);
+  let res=await fetch('/api.php?action='+encodeURIComponent(action),opts);
+  if(res.status===401&&admin){key=prompt('Informe a chave administrativa:')||'';if(!key)throw new Error('Operação administrativa cancelada.');sessionStorage.setItem('panelaoAdminKey',key);headers['X-Admin-Key']=key;res=await fetch('/api.php?action='+encodeURIComponent(action),opts);}
+  const out=await res.json().catch(()=>({ok:false,error:'Resposta inválida do servidor.'}));
+  if(!res.ok||out.ok===false)throw new Error(out.error||('Erro HTTP '+res.status)); return out.data;
+}
+async function loadFromServer(silent=false){try{const data=await api('state');db={...emptyData(),...data,tournament:TOURNAMENT};setServerStatus(true);renderAll();return true}catch(err){setServerStatus(false,err.message);if(!silent)toast('Falha ao acessar o servidor: '+err.message);return false}}
+async function commit(action,payload,successMessage='',admin=false){try{const data=await api(action,payload,admin);db={...emptyData(),...data,tournament:TOURNAMENT};setServerStatus(true);renderAll();if(successMessage)toast(successMessage);return true}catch(err){setServerStatus(false,err.message);toast(err.message);return false}}
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function fmtDate(v){return new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}
 function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2600)}
 async function hashPin(pin){const bytes=new TextEncoder().encode(`PAN2026|${pin}`);const hash=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 
-function init(){
+async function init(){
   populateCatalog(); buildDeck('#deckA','A'); buildDeck('#deckB','B'); bindNav(); bindForms(); refreshBattleComboSelectors(); renderBattleResults(); renderAll();
-  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  await loadFromServer(); syncTimer=setInterval(()=>loadFromServer(true),8000); document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadFromServer(true)});
 }
 function populateCatalog(){Object.entries(catalog).forEach(([k,arr])=>{const el=$(`#${k}List`);if(el)el.innerHTML=arr.map(x=>`<option value="${esc(x)}"></option>`).join('')})}
 function buildDeck(target,side){const host=$(target);for(let i=1;i<=3;i++){const node=$('#comboTemplate').content.cloneNode(true);node.querySelector('.combo-num').textContent=i;node.querySelector('.combo-box').dataset.combo=i;node.querySelector('.clear-combo').addEventListener('click',e=>{e.target.closest('.combo-box').querySelectorAll('input').forEach(x=>x.value='')});host.appendChild(node)}}
@@ -38,8 +49,8 @@ function bindNav(){
 }
 function showTab(id){$$('.panel').forEach(x=>x.classList.toggle('active',x.id===id));$$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));window.scrollTo({top:0,behavior:'smooth'})}
 function bindForms(){
-  $('#playerForm').addEventListener('submit',async e=>{e.preventDefault();const name=$('#playerName').value.trim();const pin=$('#playerPin').value.trim();if(db.players.some(p=>p.name.toLowerCase()===name.toLowerCase())) return toast('Já existe um jogador com esse nome.');db.players.push({id:uid('p'),name,team:$('#playerTeam').value.trim(),pinHash:await hashPin(pin),deck:[],createdAt:new Date().toISOString()});e.target.reset();save();toast('Jogador cadastrado.')});
-  $('#judgeForm').addEventListener('submit',e=>{e.preventDefault();const name=$('#judgeName').value.trim();if(db.judges.some(j=>j.name.toLowerCase()===name.toLowerCase())) return toast('Já existe um juiz com esse nome.');db.judges.push({id:uid('j'),name,team:$('#judgeTeam').value.trim(),createdAt:new Date().toISOString()});e.target.reset();save();toast('Juiz cadastrado.')});
+  $('#playerForm').addEventListener('submit',async e=>{e.preventDefault();const name=$('#playerName').value.trim();const pin=$('#playerPin').value.trim();if(db.players.some(p=>p.name.toLowerCase()===name.toLowerCase()))return toast('Já existe um jogador com esse nome.');const player={id:uid('p'),name,team:$('#playerTeam').value.trim(),pinHash:await hashPin(pin),deck:[],createdAt:new Date().toISOString()};if(await commit('addPlayer',{player},'Jogador cadastrado.'))e.target.reset();});
+  $('#judgeForm').addEventListener('submit',async e=>{e.preventDefault();const name=$('#judgeName').value.trim();if(db.judges.some(j=>j.name.toLowerCase()===name.toLowerCase()))return toast('Já existe um juiz com esse nome.');const judge={id:uid('j'),name,team:$('#judgeTeam').value.trim(),createdAt:new Date().toISOString()};if(await commit('addJudge',{judge},'Juiz cadastrado.'))e.target.reset();});
   $('#matchForm').addEventListener('submit',handleMatchSubmit);
   $$('.finish-btn').forEach(btn=>btn.addEventListener('click',()=>addBattleResult(btn.dataset.finish,btn)));
   ['#deckA','#deckB'].forEach(sel=>$(sel).addEventListener('input',refreshBattleComboSelectors));
@@ -53,7 +64,7 @@ function bindForms(){
   $('#historySearch').addEventListener('input',renderHistory);$('#statusFilter').addEventListener('change',renderHistory);
   $('#validationForm').addEventListener('submit',handleValidation);
   $('#exportJson').addEventListener('click',exportJson);$('#importJson').addEventListener('change',importJson);$('#exportCsv').addEventListener('click',exportCsv);
-  $('#clearAll').addEventListener('click',()=>{if(confirm('Apagar TODOS os jogadores, juízes e partidas deste aparelho?')){db=emptyData();localStorage.removeItem(APP_KEY);renderAll();toast('Dados apagados.')}});
+  $('#clearAll').addEventListener('click',async()=>{if(confirm('Apagar TODOS os jogadores, juízes e partidas do servidor?'))await commit('clearAll',{},'Dados do servidor apagados.',true);});
 }
 function collectDeck(selector){return $$(selector+' .combo-box').map(box=>{const get=c=>box.querySelector('.'+c).value.trim();return {lock:get('lock'),blade:get('blade'),over:get('over'),metal:get('metal'),assist:get('assist'),ratchet:get('ratchet'),bit:get('bit')}}).filter(c=>Object.values(c).some(Boolean))}
 function comboText(c){const main=[c.lock,c.blade,c.over,c.metal,c.assist].filter(Boolean).join(' / ');return [main,c.ratchet,c.bit].filter(Boolean).join(' • ')||'—'}
@@ -90,7 +101,7 @@ function openPlayerCombos(id){
   $('#playerCombosDialog').showModal();
 }
 window.openPlayerCombos=openPlayerCombos;
-function savePlayerCombosFromDialog(e){e.preventDefault();const id=$('#playerCombosPlayerId').value,p=getPlayer(id);if(!p)return;p.deck=collectDeck('#playerCombosEditor');p.updatedAt=new Date().toISOString();$('#playerCombosDialog').close();save();if($('#playerA').value===id)syncMatchDeckFromPlayer('A');if($('#playerB').value===id)syncMatchDeckFromPlayer('B');toast('Combos do jogador atualizados.');}
+async function savePlayerCombosFromDialog(e){e.preventDefault();const id=$('#playerCombosPlayerId').value,p=getPlayer(id);if(!p)return;const deck=collectDeck('#playerCombosEditor');if(await commit('updatePlayerDeck',{id,deck},'Combos do jogador atualizados.')){$('#playerCombosDialog').close();if($('#playerA').value===id)syncMatchDeckFromPlayer('A');if($('#playerB').value===id)syncMatchDeckFromPlayer('B');}}
 function addBattleResult(finish,button=null){
   const winner=$('#battleWinner').value;
   const comboA=getSelectedBattleCombo('A'),comboB=getSelectedBattleCombo('B');
@@ -113,7 +124,7 @@ function renderBattleResults(){
 function matchResults(m){return Array.isArray(m.results)?m.results:[]}
 function resultsSummaryHtml(m){const rs=matchResults(m);if(!rs.length)return '<div class="muted legacy-result">Detalhamento por batalha não disponível para este registro anterior.</div>';return `<div class="round-breakdown"><strong>Pontuação por batalha</strong>${rs.map(r=>`<div>${esc(resultText(r,m))}</div>`).join('')}</div>`}
 function getPlayer(id){return db.players.find(p=>p.id===id)} function getJudge(id){return db.judges.find(j=>j.id===id)}
-function handleMatchSubmit(e){
+async function handleMatchSubmit(e){
   e.preventDefault();const playerA=$('#playerA').value,playerB=$('#playerB').value,judge=$('#judge').value;
   if(!playerA||!playerB||!judge) return toast('Cadastre e selecione jogadores e juiz.');
   if(playerA===playerB) return toast('Os jogadores A e B precisam ser diferentes.');
@@ -123,7 +134,7 @@ function handleMatchSubmit(e){
   const deckA=collectDeck('#deckA'),deckB=collectDeck('#deckB');if(!deckA.length||!deckB.length)return toast('Os dois jogadores precisam ter ao menos um combo pré-registrado.');
   const results=currentBattleResults.map(r=>({...r}));
   const match={id:uid('m'),tournament:TOURNAMENT,stage:$('#stage').value,round:$('#round').value.trim(),tableNo:$('#tableNo').value.trim(),judgeId:judge,playerAId:playerA,playerBId:playerB,scoreA,scoreB,results,deckA,deckB,notes:$('#notes').value.trim(),validations:{A:null,B:null},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-  db.matches.unshift(match);currentBattleResults=[];save();e.target.reset();$$('#deckA input,#deckB input').forEach(x=>x.value='');refreshBattleComboSelectors();renderBattleResults();showTab('history');toast('Partida salva com o detalhamento das pontuações. Agora os dois jogadores devem validar.');
+  if(!(await commit('addMatch',{match},'Partida salva no servidor. Agora os dois jogadores devem validar.')))return;currentBattleResults=[];e.target.reset();$$('#deckA input,#deckB input').forEach(x=>x.value='');refreshBattleComboSelectors();renderBattleResults();showTab('history');toast('Partida salva com o detalhamento das pontuações. Agora os dois jogadores devem validar.');
 }
 function renderAll(){renderSelects();renderPeople();renderDashboard();renderHistory();renderRanking()}
 function renderSelects(){
@@ -137,7 +148,7 @@ function renderPeople(){
   $('#playerList').innerHTML=db.players.length?db.players.map(p=>`<div class="list-row"><div><strong>${esc(p.name)}</strong>${getPlayerDeck(p.id).length?`<span class="player-combos-badge">${getPlayerDeck(p.id).length} combo(s)</span>`:''}<div class="muted">${esc(p.team||'Sem equipe/cidade')}</div></div><div><button class="secondary" onclick="openPlayerCombos('${p.id}')">Gerenciar combos</button> <button class="ghost" onclick="removePerson('player','${p.id}')">Excluir</button></div></div>`).join(''):'<div class="list-empty">Nenhum jogador cadastrado.</div>';
   $('#judgeList').innerHTML=db.judges.length?db.judges.map(j=>`<div class="list-row"><div><strong>${esc(j.name)}</strong><div class="muted">${esc(j.team||'Sem identificação adicional')}</div></div><button class="ghost" onclick="removePerson('judge','${j.id}')">Excluir</button></div>`).join(''):'<div class="list-empty">Nenhum juiz cadastrado.</div>';
 }
-window.removePerson=function(type,id){const used=type==='player'?db.matches.some(m=>m.playerAId===id||m.playerBId===id):db.matches.some(m=>m.judgeId===id);if(used)return toast('Não é possível excluir: há partidas vinculadas.');if(!confirm('Excluir este cadastro?'))return;if(type==='player')db.players=db.players.filter(x=>x.id!==id);else db.judges=db.judges.filter(x=>x.id!==id);save()}
+window.removePerson=async function(type,id){const used=type==='player'?db.matches.some(m=>m.playerAId===id||m.playerBId===id):db.matches.some(m=>m.judgeId===id);if(used)return toast('Não é possível excluir: há partidas vinculadas.');if(!confirm('Excluir este cadastro do servidor?'))return;await commit('removePerson',{type,id},'Cadastro excluído.',true)}
 function isApproved(m){return !!(m.validations?.A&&m.validations?.B)}
 function renderDashboard(){
   $('#mTotal').textContent=db.matches.length;$('#mApproved').textContent=db.matches.filter(isApproved).length;$('#mPending').textContent=db.matches.filter(m=>!isApproved(m)).length;$('#mPlayers').textContent=db.players.length;
@@ -162,8 +173,8 @@ function matchCard(m){
  </article>`
 }
 window.openValidation=function(id,side){const m=db.matches.find(x=>x.id===id);if(!m)return;const player=getPlayer(side==='A'?m.playerAId:m.playerBId);$('#validationMatchId').value=id;$('#validationSide').value=side;$('#validationPin').value='';$('#validationError').textContent='';$('#validationTitle').textContent=`Validação de ${player?.name||'jogador'}`;$('#validationSummary').textContent=`Confirme o resultado ${getPlayer(m.playerAId)?.name} ${m.scoreA} × ${m.scoreB} ${getPlayer(m.playerBId)?.name}. ${matchResults(m).map(r=>resultText(r,m)).join(' | ')}`;$('#validationDialog').showModal()}
-async function handleValidation(e){e.preventDefault();const id=$('#validationMatchId').value,side=$('#validationSide').value,m=db.matches.find(x=>x.id===id);if(!m)return;const player=getPlayer(side==='A'?m.playerAId:m.playerBId),hash=await hashPin($('#validationPin').value);if(!player||hash!==player.pinHash){$('#validationError').textContent='PIN incorreto. A validação não foi registrada.';return}m.validations[side]={at:new Date().toISOString(),playerId:player.id};m.updatedAt=new Date().toISOString();$('#validationDialog').close();save();toast(isApproved(m)?'Partida homologada pelos dois jogadores.':'Validação registrada. Falta o outro jogador.')}
-window.deleteMatch=function(id){const m=db.matches.find(x=>x.id===id);if(isApproved(m)&&!confirm('Esta partida já foi homologada. Tem certeza de que deseja excluir?'))return;if(!isApproved(m)&&!confirm('Excluir esta partida?'))return;db.matches=db.matches.filter(x=>x.id!==id);save();toast('Partida excluída.')}
+async function handleValidation(e){e.preventDefault();const id=$('#validationMatchId').value,side=$('#validationSide').value;const pinHash=await hashPin($('#validationPin').value);try{const data=await api('validateMatch',{id,side,pinHash});db={...emptyData(),...data,tournament:TOURNAMENT};setServerStatus(true);$('#validationDialog').close();renderAll();const updated=db.matches.find(x=>x.id===id);toast(isApproved(updated)?'Partida homologada pelos dois jogadores.':'Validação registrada. Falta o outro jogador.')}catch(err){$('#validationError').textContent=err.message;setServerStatus(false,err.message)}}
+window.deleteMatch=async function(id){const m=db.matches.find(x=>x.id===id);if(isApproved(m)&&!confirm('Esta partida já foi homologada. Tem certeza de que deseja excluir do servidor?'))return;if(!isApproved(m)&&!confirm('Excluir esta partida do servidor?'))return;await commit('deleteMatch',{id},'Partida excluída.',true)}
 function renderRanking(){
   const stats=new Map(db.players.map(p=>[p.id,{p,j:0,v:0,d:0,pf:0,ps:0}]));
   db.matches.filter(isApproved).forEach(m=>{const a=stats.get(m.playerAId),b=stats.get(m.playerBId);if(!a||!b)return;a.j++;b.j++;a.pf+=m.scoreA;a.ps+=m.scoreB;b.pf+=m.scoreB;b.ps+=m.scoreA;if(m.scoreA>m.scoreB){a.v++;b.d++}else{b.v++;a.d++}});
@@ -171,8 +182,8 @@ function renderRanking(){
   $('#rankingBody').innerHTML=rows.length?rows.map((s,i)=>`<tr><td>${i+1}</td><td><strong>${esc(s.p.name)}</strong></td><td>${s.j}</td><td>${s.v}</td><td>${s.d}</td><td>${s.pf}</td><td>${s.ps}</td><td>${s.pf-s.ps}</td><td>${Math.round(s.v/s.j*100)}%</td></tr>`).join(''):'<tr><td colspan="9" class="muted">A classificação aparecerá após a primeira partida homologada.</td></tr>';
 }
 function download(name,type,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-function exportJson(){download(`panelao-beyblade-x-2026-backup-${new Date().toISOString().slice(0,10)}.json`,'application/json',JSON.stringify(db,null,2));toast('Backup JSON gerado.')}
-function importJson(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const next=JSON.parse(r.result);if(!Array.isArray(next.players)||!Array.isArray(next.judges)||!Array.isArray(next.matches))throw new Error();if(confirm('Importar este backup e substituir os dados atuais?')){db={...emptyData(),...next,tournament:TOURNAMENT};save();toast('Backup importado.')}}catch{toast('Arquivo de backup inválido.')}e.target.value=''};r.readAsText(f)}
+async function exportJson(){try{const full=await api('backup',null,true);download('panelao-beyblade-x-2026-backup-'+new Date().toISOString().slice(0,10)+'.json','application/json',JSON.stringify(full,null,2));toast('Backup completo do servidor gerado.')}catch(err){toast(err.message)}}
+function importJson(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const next=JSON.parse(r.result);if(!Array.isArray(next.players)||!Array.isArray(next.judges)||!Array.isArray(next.matches))throw new Error('Arquivo de backup inválido.');if(confirm('Importar este backup e SUBSTITUIR os dados do servidor?'))await commit('replaceAll',{data:next},'Backup importado no servidor.',true)}catch(err){toast(err.message||'Arquivo de backup inválido.')}e.target.value=''};r.readAsText(f)}
 function csvCell(v){return `"${String(v??'').replace(/"/g,'""')}"`}
 function exportCsv(){const head=['ID','Torneio','Fase','Rodada','Mesa','Jogador A','Placar A','Jogador B','Placar B','Pontuação por batalha','Juiz','Status','Validação A','Validação B','Deck A','Deck B','Observações','Registrada em'];const rows=db.matches.map(m=>[m.id,TOURNAMENT,m.stage,m.round,m.tableNo,getPlayer(m.playerAId)?.name,m.scoreA,getPlayer(m.playerBId)?.name,m.scoreB,matchResults(m).map(r=>resultText(r,m)).join(' | '),getJudge(m.judgeId)?.name,isApproved(m)?'Homologada':'Pendente',m.validations.A?.at||'',m.validations.B?.at||'',m.deckA.map(comboText).join(' | '),m.deckB.map(comboText).join(' | '),m.notes,m.createdAt]);download('panelao-beyblade-x-2026-partidas.csv','text/csv;charset=utf-8','\ufeff'+[head,...rows].map(r=>r.map(csvCell).join(';')).join('\n'));toast('CSV gerado.')}
 
