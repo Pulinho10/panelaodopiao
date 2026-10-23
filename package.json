@@ -1,0 +1,8 @@
+{
+  "name": "panelao-brasileiro-beyblade-x-2026",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {"start": "node server.js"},
+  "dependencies": {"express": "^4.21.2"}
+}
